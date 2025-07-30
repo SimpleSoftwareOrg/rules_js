@@ -565,28 +565,95 @@ def _convert_v9_packages(packages, snapshots):
 
     return result
 
+######################### Dev Dependency Detection #########################
+
+def _detect_dev_only_packages_v9(importers, packages):
+    # Detect packages that are dev-only across all importers for v9+ lockfiles.
+    # Uses reverse traversal: mark everything reachable from production deps,
+    # remaining packages are dev-only.
+
+    # Find all packages directly referenced in production
+    production_roots = {}
+    for importer_info in importers.values():
+        for pkg_name in importer_info.get("dependencies", {}).keys():
+            production_roots[pkg_name] = True
+
+        # Treat optional dependencies as production
+        for pkg_name in importer_info.get("optional_dependencies", {}).keys():
+            production_roots[pkg_name] = True
+
+    # Traverse production dependency tree with memoization
+    production_reachable = {}
+    stack = list(production_roots.keys())
+    in_stack = {pkg: True for pkg in stack}
+
+    # Create lookup map from package name to package info
+    name_to_packages = {}
+    for package_key, package_info in packages.items():
+        pkg_name = package_info["name"]
+        if pkg_name not in name_to_packages:
+            name_to_packages[pkg_name] = []
+        name_to_packages[pkg_name].append(package_info)
+
+    # Iterative traversal
+    max_iterations = 10000
+    for _ in range(max_iterations):
+        if len(stack) == 0:
+            break
+
+        current_pkg_name = stack.pop()
+        in_stack.pop(current_pkg_name, None)
+
+        if current_pkg_name in production_reachable:
+            continue
+
+        production_reachable[current_pkg_name] = True
+
+        if current_pkg_name in name_to_packages:
+            for package_info in name_to_packages[current_pkg_name]:
+                for dep_name in package_info.get("dependencies", {}).keys():
+                    if dep_name not in production_reachable and dep_name not in in_stack:
+                        stack.append(dep_name)
+                        in_stack[dep_name] = True
+
+                for dep_name in package_info.get("optional_dependencies", {}).keys():
+                    if dep_name not in production_reachable and dep_name not in in_stack:
+                        stack.append(dep_name)
+                        in_stack[dep_name] = True
+
+    # Packages not reachable from production are dev-only
+    dev_only_packages = {}
+    for package_key, package_info in packages.items():
+        pkg_name = package_info["name"]
+        if pkg_name not in production_reachable:
+            dev_only_packages[package_key] = True
+
+    return dev_only_packages
+
 ######################### Pnpm API #########################
 
-def _parse_pnpm_lock_json(content):
+def _parse_pnpm_lock_json(content, detect_dev_dependencies = False):
     """Parse the content of a pnpm-lock.yaml file.
 
     Args:
         content: lockfile content as json
+        detect_dev_dependencies: Whether to detect dev-only packages for v9+ lockfiles
 
     Returns:
-        A tuple of (importers dict, packages dict, patched_dependencies dict, error string)
+        A tuple of (importers dict, packages dict, patched_dependencies dict, lockfile_version, error string)
     """
-    return _parse_lockfile(json.decode(content) if content else None, None)
+    return _parse_lockfile(json.decode(content) if content else None, None, detect_dev_dependencies)
 
-def _parse_lockfile(parsed, err):
+def _parse_lockfile(parsed, err, detect_dev_dependencies = False):
     """Helper function used by _parse_pnpm_lock_json.
 
     Args:
         parsed: lockfile content object
         err: any errors from pasring
+        detect_dev_dependencies: Whether to detect dev-only packages for v9+ lockfiles
 
     Returns:
-        A tuple of (importers dict, packages dict, patched_dependencies dict, error string)
+        A tuple of (importers dict, packages dict, patched_dependencies dict, lockfile_version, error string)
     """
     if err != None or parsed == None or parsed == {}:
         return {}, {}, {}, None, err
@@ -623,6 +690,14 @@ def _parse_lockfile(parsed, err):
 
     importers = utils.sorted_map(importers)
     packages = utils.sorted_map(packages)
+
+    # Apply dev-only detection for v9+ lockfiles when enabled
+    if detect_dev_dependencies and lockfile_version >= 9.0:
+        dev_only_set = _detect_dev_only_packages_v9(importers, packages)
+
+        # Update package info with detected dev_only status (using set lookup)
+        for package_key, package_info in packages.items():
+            package_info["dev_only"] = package_key in dev_only_set
 
     _validate_lockfile_data(importers, packages)
 

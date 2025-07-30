@@ -76,6 +76,7 @@ _ATTRS = {
     "custom_postinstalls": attr.string_dict(),
     "data": attr.label_list(),
     "defs_bzl_filename": attr.string(default = DEFAULT_DEFS_BZL_FILENAME),
+    "detect_dev_dependencies": attr.bool(default = False),
     "dev": attr.bool(),
     "external_repository_action_cache": attr.string(default = utils.default_external_repository_action_cache()),
     "generate_bzl_library_targets": attr.bool(),

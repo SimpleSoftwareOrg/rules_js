@@ -496,7 +496,8 @@ def _load_lockfile(priv, rctx, _, label_store):
     if result.return_code:
         lock_parse_err = "failed to parse pnpm lock file with yq. '{}' exited with {}: \nSTDOUT:\n{}\nSTDERR:\n{}".format(" ".join(yq_args), result.return_code, result.stdout, result.stderr)
     else:
-        importers, packages, patched_dependencies, lock_version, lock_parse_err = pnpm.parse_pnpm_lock_json(result.stdout if result.stdout != "null" else None)  # NB: yq will return the string "null" if the yaml file is empty
+        detect_dev_deps = getattr(rctx.attr, "detect_dev_dependencies", False) if hasattr(rctx, "attr") else False
+        importers, packages, patched_dependencies, lock_version, lock_parse_err = pnpm.parse_pnpm_lock_json(result.stdout if result.stdout != "null" else None, detect_dev_deps)  # NB: yq will return the string "null" if the yaml file is empty
 
     priv["lock_version"] = lock_version
     priv["importers"] = importers
