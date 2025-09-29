@@ -2492,7 +2492,6 @@ def npm_link_all_packages(name = "node_modules", imported_links = []):
             link_1049("{}/typescript".format(name), link_root_name = name, link_alias = "typescript")
             link_targets.append(":{}/typescript".format(name))
             link_1062("{}/unused".format(name), link_root_name = name, link_alias = "unused")
-            link_targets.append(":{}/unused".format(name))
             link_1077("{}/webpack-bundle-analyzer".format(name), link_root_name = name, link_alias = "webpack-bundle-analyzer")
             link_targets.append(":{}/webpack-bundle-analyzer".format(name))
         elif bazel_package == "js/private/coverage/bundle":
@@ -3412,7 +3411,6 @@ def npm_link_targets(name = "node_modules", package = None):
             link_targets.append(":{}/semver-first-satisfied".format(name))
             link_targets.append(":{}/syncpack".format(name))
             link_targets.append(":{}/typescript".format(name))
-            link_targets.append(":{}/unused".format(name))
             link_targets.append(":{}/webpack-bundle-analyzer".format(name))
         elif bazel_package == "js/private/coverage/bundle":
             link_targets.append(":{}/@rollup/plugin-commonjs".format(name))
